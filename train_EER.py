@@ -244,19 +244,28 @@ for i in listing[:5]:
 	load_data(i)
 
 print '\n\nTest Accuracy:\n', Test_Accuracy
-print '\n\nTest EER:\n', Test_EER
+print '\n\n'
+print 'FAR:\n', FAR
+print '\n\n'
+print 'FRR:\n', FRR
 print '\n\n'
 
 sum_test = []
-sum_EER = []
+far_sum = []
+frr_sum = []
 
 for i in Test_Accuracy.values():
-	sum_test.append(float(i))
-for i in Test_EER.values():
-	sum_EER.append(float(i))
+	sum_test.append(i)
+
+for i in FAR.values():
+	far_sum.append(i)
+
+for i in FRR.values():
+	frr_sum.append(i)
 
 print 'Mean Test Accuracy: ', np.mean(np.array(sum_test))
-print 'Mean Test EER: ', np.mean(np.array(sum_EER))
+print 'Mean FAR: ', np.mean(np.array(far_sum))
+print 'Mean FRR: ', np.mean(np.array(frr_sum))
 
 elapsed_time = (time() - start_time)/60
 
