@@ -13,8 +13,6 @@ from keras.callbacks import TensorBoard
 from sklearn.metrics import roc_curve
 
 
-
-
 feature = '_ori_'
 sensor = 'Orientation'
 logs = 'Ori_logs'
@@ -43,18 +41,18 @@ else:
 
 # change dataset
 
-datasetFolder = '/media/adeen/Life/FYP/FYP_UPDATED/data/processed_data_equal_removed_equal_IMUs_length'
+datasetFolder = '/home/adeen/Desktop/FYP_UPDATED/data/processed_data_equal_removed_equal_IMUs_length'
 run_type = 'IMU_Equal'
 MAX_LENGTH = 1350
-# datasetFolder = '/media/adeen/Life/FYP/FYP_UPDATED/data/processed_data_duplicate_removed_perUser_equal'
+# datasetFolder = '/home/adeen/Desktop/FYP_UPDATED/data/processed_data_duplicate_removed_perUser_equal'
 # run_type = 'User_Equal'
 
-# datasetFolder = '/media/adeen/Life/FYP/FYP_UPDATED/data/original_data'
+# datasetFolder = '/home/adeen/Desktop/FYP_UPDATED/data/original_data'
 # run_type = 'Original'
 # MAX_LENGTH = 2700
 
 listing = os.listdir(datasetFolder)
-# listing = sorted(listing, key=str.lower)
+listing = sorted(listing, key=str.lower)
 # print listing
 
 
@@ -76,30 +74,32 @@ def calulate_EER(y_actual, y_pred):
 
 
 def evaluate_model(trainX, trainy, testX, testy, NAME, repeats):
-	epochs, batch_size, learning_rate = 20, 30, 0.001
+
+	model_path = '/home/adeen/Desktop/FYP_UPDATED/MODELS/'+sensor+'/'+NAME+'/'+run_type+run_number+'_'+str(repeats)+'_model.ckpt'
+	ckpt_callback = keras.callbacks.ModelCheckpoint(model_path, save_weights_only=True, verbose=1)
+	tb_callback = TensorBoard(log_dir='/home/adeen/Desktop/FYP_UPDATED/TENSORBOARD_LOGS/'+logs+'/'+NAME+'_'+run_type+run_number+'_'+str(repeats)+'GRU_CNN128_batch30_{}'.format(time()))
+	early_stop = keras.callbacks.EarlyStopping(patience=12, verbose=1)
+	# reduce_lr = keras.callbacks.ReduceLROnPlateau(factor=0.1,patience=5, min_lt=0.00001,verbose=1)
+
+
+	epochs, batch_size, learning_rate = 150, 30, 0.001
 
 	layer1 = Sequential()
 	layer1.add(Convolution1D(128, len(col_names), strides=2, activation='relu'))
 	layer1.add(MaxPooling1D(pool_size=2))
 	layer1.add(Dropout(0.2))
-	layer1.add(Flatten())
-	# layer1.add(Dense(128, activation='relu'))
-	# layer1.add(Dense(30, activation='relu'))
-	# layer1.add(Dense(20, activation='relu'))
-	# layer1.add(Dense(30, activation='relu'))
-	# layer1.add(Dense(128, activation='relu'))
+	# layer1.add(Flatten())
+	layer1.add(GRU(2))
 	layer1.add(Dense(2, activation='softmax'))
 
-	opt = keras.optimizers.adam(lr=learning_rate)
-
+	opt = keras.optimizers.SGD(lr=learning_rate)
 	layer1.compile(loss='binary_crossentropy', optimizer=opt, metrics=['accuracy'])
-	# tensorboard = TensorBoard(log_dir='/media/adeen/Life/FYP/FYP_UPDATED/TENSORBOARD_LOGS/'+logs+'/'+run_number+'CNN128_batch30_{}'.format(time()))
 	
-	# layer1.fit(trainX, trainy, epochs=epochs, batch_size=batch_size, validation_data=(validation_X, validation_y), shuffle=True, callbacks = [tensorboard])
-	# layer1.fit(trainX, trainy, epochs=epochs, batch_size=batch_size, shuffle=True, verbose=0, callbacks = [tensorboard])
+	# layer1.fit(trainX, trainy, epochs=epochs, batch_size=batch_size, validation_data=(validation_X, validation_y), shuffle=True, callbacks = [tb_callback])
+	hist = layer1.fit(trainX, trainy, epochs=epochs, batch_size=batch_size, shuffle=True, verbose=1, callbacks = [early_stop, ckpt_callback, tb_callback])
 
 	# layer1.fit(trainX, trainy, epochs=epochs, batch_size=batch_size, shuffle=True, verbose=0)		# doesn't show training
-	layer1.fit(trainX, trainy, epochs=epochs, batch_size=batch_size, shuffle=True)				# shows training
+	# hist = layer1.fit(trainX, trainy, epochs=epochs, batch_size=batch_size, shuffle=True)				# shows training
 
 	# evaluate model
 	y1_pred = layer1.predict(testX)
@@ -115,21 +115,25 @@ def evaluate_model(trainX, trainy, testX, testy, NAME, repeats):
 	far, frr = calulate_EER(testy[:,1], y1_pred_class)
 	_, accuracy1 = layer1.evaluate(testX, testy, verbose=0)
 
-	# model_name = '/media/adeen/Life/FYP/FYP_UPDATED/MODELS/'+sensor+'/'+NAME+'/'+run_type+run_number+'_'+str(repeats)+'_model.h5'
+	
+	# model_name = '/home/adeen/Desktop/FYP_UPDATED/MODELS/'+sensor+'/'+NAME+'/'+run_type+run_number+'_'+str(repeats)+'_model.h5'
 	# layer1.save(model_name)
 
-	# model_weights = '/media/adeen/Life/FYP/FYP_UPDATED/MODELS/'+sensor+'/'+NAME+'/'+run_type+run_number+'_'+str(repeats)+'_model_weights.h5'
+	# model_weights = '/home/adeen/Desktop/FYP_UPDATED/MODELS/'+sensor+'/'+NAME+'/'+run_type+run_number+'_'+str(repeats)+'_model_weights.h5'
 	# layer1.save_weights(model_weights)
 
 	# if NAME == 'user45':
-	# 	model_architecture = '/media/adeen/Life/FYP/FYP_UPDATED/MODELS/'+sensor+'/'+NAME+'/'+run_type+run_number+'_'+str(repeats)+'_model_arch.json'
+	# 	model_architecture = '/home/adeen/Desktop/FYP_UPDATED/MODELS/'+sensor+'/'+NAME+'/'+run_type+run_number+'_'+str(repeats)+'_model_arch.json'
 	# 	architecture = layer1.to_json()
 		
 	# 	with open(model_architecture, 'w') as f:
 	# 		json.dump(architecture, f)
-
+	del trainy
+	del trainX
+	
+	print(layer1.summary())
 	del layer1
-	return accuracy1, eer1
+	return accuracy1, far, frr
  
 # summarize scores
 def summarize_results(scores):
@@ -146,11 +150,10 @@ def run_experiment(trainX, trainy, testX, testy, NAME, repeats=1):
 	frr = list()
 	for r in range(repeats):
 		accuracy1, fa, fr = evaluate_model(trainX, trainy, testX, testy, NAME, r)
-		score1 = accuracy1 * 100.0
-		print('>#%d: %.3f Test\n' % (r+1, score1))
-		scores1.append(score1)
-		far.append(fa)
-		frr.append(fr)
+		print('>#%d: %.3f Test\n' % (r+1, accuracy1*100.0))
+		scores1.append(accuracy1*100.0)
+		far.append(fa*100.0)
+		frr.append(fr*100.0)
 
 	# summarize results
 	print 'Test Set:'
@@ -204,12 +207,14 @@ def load_data(NAME):
 							X_tr.append([scaled_data, [1, 0]])
 
 						else:
+							# appends every other csv of genuine signature as test or train
 							if count%2 == 0:
 								X_te.append([scaled_data, [0, 1]])
+								# print path, '_', count
 							else:
 								X_tr.append([scaled_data, [0, 1]])
 							count+=1
-							print subject, '  ', count
+							# print subject, '_', count
 
 				elif os.path.isdir(os.path.join(data_path, csv)):
 					for f in os.listdir(data_path+'/'+csv):
@@ -217,13 +222,17 @@ def load_data(NAME):
 							if(feature in f):
 								path = data_path+'/'+csv+'/'+f
 								scaled_data = pandafy(path)
-						
+
+								# appends forged of all other subjects as negative training samples
 								if subject != NAME:
 									X_tr.append([scaled_data, [1, 0]])
-									
+								
+								# appends forged of subject as test samples
 								else:
 									X_te.append([scaled_data, [1, 0]])
-									# print subject,"_forged  ", count
+									# print 'forge_',data_path, f
+									# print path, '_', count
+		del scaled_data
 
 	X_tr = np.array(X_tr)
 	X_te = np.array(X_te)
@@ -235,12 +244,15 @@ def load_data(NAME):
 	trainX = np.array([i[0] for i in X_tr])
 	trainy = np.array([i[1] for i in X_tr])
 
+	del X_tr
+	del X_te
+
 	run_experiment(trainX, trainy, testX, testy, NAME)
 
 
 start_time = time()
 
-for i in listing[:5]:
+for i in listing:
 	load_data(i)
 
 print '\n\nTest Accuracy:\n', Test_Accuracy
@@ -276,6 +288,6 @@ with open('run_number.txt', 'w') as f:
 	f.write(str(run_number))
 
 
-# python train.py |& tee /media/adeen/Life/FYP/FYP_UPDATED/TEXT_LOGS/Ori_logs/0oriSoftmax_all_mean.txt
-# python train.py |& tee /media/adeen/Life/FYP/FYP_UPDATED/TEXT_LOGS/Gyro_logs/0gyroSoftmax_all_mean.txt
-# python train.py |& tee /media/adeen/Life/FYP/FYP_UPDATED/TEXT_LOGS/Acc_logs/0accSoftmax_all_mean.txt
+# python train.py |& tee /home/adeen/Desktop/FYP_UPDATED/TEXT_LOGS/Ori_logs/0oriSoftmax_all_mean.txt
+# python train.py |& tee /home/adeen/Desktop/FYP_UPDATED/TEXT_LOGS/Gyro_logs/0gyroSoftmax_all_mean.txt
+# python train.py |& tee /home/adeen/Desktop/FYP_UPDATED/TEXT_LOGS/Acc_logs/0accSoftmax_all_mean.txt
