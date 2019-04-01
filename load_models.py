@@ -176,9 +176,7 @@ def load_data(NAME):
 	X_te = []								# variable to store test dataset
 
 	count = 0
-
 	data_path = datasetFolder+'/'+NAME
-	# MAX_LENGTH = maxlen(data_path)
 
 	if os.path.isdir(os.path.join(data_path)):
 		for csv in os.listdir(data_path):

@@ -140,12 +140,12 @@ def summarize_results(scores):
 
  
 # run an experiment
-def run_experiment(testX, testy, NAME, repeats=1):
+def run_experiment(trainX, trainy, testX, testy, NAME, repeats=1):
 	scores1 = list()
 	far = list()
 	frr = list()
 	for r in range(repeats):
-		accuracy1, fa, fr = evaluate_model(testX, testy, NAME, r)
+		accuracy1, fa, fr = evaluate_model(trainX, trainy, testX, testy, NAME, r)
 		score1 = accuracy1 * 100.0
 		print('>#%d: %.3f Test\n' % (r+1, score1))
 		scores1.append(score1)
@@ -190,9 +190,6 @@ def load_data(NAME):
 
 	count = 0
 	
-	data_path = datasetFolder+'/'+NAME
-	# MAX_LENGTH = maxlen(data_path)
-
 	for subject in listing:
 		data_path = datasetFolder+'/'+subject
 
