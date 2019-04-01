@@ -45,11 +45,13 @@ else:
 
 datasetFolder = '/media/adeen/Life/FYP/FYP_UPDATED/data/processed_data_equal_removed_equal_IMUs_length'
 run_type = 'IMU_Equal'
+MAX_LENGTH = 1350
 # datasetFolder = '/media/adeen/Life/FYP/FYP_UPDATED/data/processed_data_duplicate_removed_perUser_equal'
 # run_type = 'User_Equal'
 
 # datasetFolder = '/media/adeen/Life/FYP/FYP_UPDATED/data/original_data'
 # run_type = 'Original'
+# MAX_LENGTH = 2700
 
 listing = os.listdir(datasetFolder)
 # listing = sorted(listing, key=str.lower)
@@ -148,7 +150,7 @@ def run_experiment(testX, testy, NAME, repeats=1):
 	FRR[NAME] = summarize_results(frr)
 
 
-def pandafy(path, MAX_LENGTH):
+def pandafy(path):
 
 	TEMP_ARR = list()
 	for i in range(len(col_names)-1):
@@ -169,17 +171,6 @@ def pandafy(path, MAX_LENGTH):
 
 	return scaled_data
 
-def maxlen(dir):
-	length = 0
-	max = length
-	for root,dirs,files in os.walk(dir):
-		for name in files:
-			if ".py" not in name:
-				length = len(open(os.path.join(root, name)).readlines())
-				if max < length:
-					max = length
-					# print max, os.path.join(root, name), '\n'
-	return max
 
 def load_data(NAME):
 	X_te = []								# variable to store test dataset
@@ -187,7 +178,7 @@ def load_data(NAME):
 	count = 0
 
 	data_path = datasetFolder+'/'+NAME
-	MAX_LENGTH = maxlen(data_path)
+	# MAX_LENGTH = maxlen(data_path)
 
 	if os.path.isdir(os.path.join(data_path)):
 		for csv in os.listdir(data_path):
@@ -198,7 +189,7 @@ def load_data(NAME):
 					path = data_path+'/'+csv
 
 					if count%2 == 0:
-						scaled_data = pandafy(path, MAX_LENGTH)
+						scaled_data = pandafy(path)
 						X_te.append([scaled_data, [0, 1]])
 					
 					count+=1
@@ -210,7 +201,7 @@ def load_data(NAME):
 					if os.path.isfile(os.path.join(data_path+'/'+csv, f)):
 						if(feature in f):
 							path = data_path+'/'+csv+'/'+f
-							scaled_data = pandafy(path, MAX_LENGTH)
+							scaled_data = pandafy(path)
 							X_te.append([scaled_data, [1, 0]])
 								# print NAME,"_forged  ", count
 

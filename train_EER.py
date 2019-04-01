@@ -45,12 +45,13 @@ else:
 
 datasetFolder = '/media/adeen/Life/FYP/FYP_UPDATED/data/processed_data_equal_removed_equal_IMUs_length'
 run_type = 'IMU_Equal'
-
+MAX_LENGTH = 1350
 # datasetFolder = '/media/adeen/Life/FYP/FYP_UPDATED/data/processed_data_duplicate_removed_perUser_equal'
 # run_type = 'User_Equal'
 
 # datasetFolder = '/media/adeen/Life/FYP/FYP_UPDATED/data/original_data'
 # run_type = 'Original'
+# MAX_LENGTH = 2700
 
 listing = os.listdir(datasetFolder)
 # listing = sorted(listing, key=str.lower)
@@ -160,7 +161,7 @@ def run_experiment(testX, testy, NAME, repeats=1):
 	FRR[NAME] = summarize_results(frr)
 
 
-def pandafy(path, MAX_LENGTH):
+def pandafy(path):
 
 	TEMP_ARR = list()
 	for i in range(len(col_names)-1):
@@ -181,17 +182,6 @@ def pandafy(path, MAX_LENGTH):
 
 	return scaled_data
 
-def maxlen(dir):
-	count = 0
-	max = count
-	for root,dirs,files in os.walk(dir):
-		for name in files:
-			if ".py" not in name:
-				count = len(open(os.path.join(root, name)).readlines())
-				if max < count:
-					max = count
-					# print max, os.path.join(root, name), '\n'
-	return max
 
 def load_data(NAME):
 
@@ -201,7 +191,7 @@ def load_data(NAME):
 	count = 0
 	
 	data_path = datasetFolder+'/'+NAME
-	MAX_LENGTH = maxlen(data_path)
+	# MAX_LENGTH = maxlen(data_path)
 
 	for subject in listing:
 		data_path = datasetFolder+'/'+subject
