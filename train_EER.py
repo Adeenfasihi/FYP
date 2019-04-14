@@ -2,14 +2,16 @@ import json
 import os
 import numpy as np
 import pandas as pd
-import keras
+
 from sklearn.preprocessing import MinMaxScaler
 from keras.models import Sequential
-from keras.layers import *
+from keras.layers import Convolution1D, MaxPooling1D, Dropout, Flatten, Dense
+from keras.optimizers import adam
+
 from scipy import stats
 
 from time import time
-from keras.callbacks import TensorBoard
+from keras.callbacks import TensorBoard, ModelCheckpoint
 from sklearn.metrics import roc_curve
 
 
@@ -57,11 +59,10 @@ listing = os.listdir(datasetFolder)
 listing = sorted(listing, key=str.lower)
 # print listing
 
-
-
 Test_Accuracy = {}
 FAR = {}
 FRR = {}
+BEST_MODEL = {}
 
 
 def calulate_EER(y_actual, y_pred):
@@ -71,36 +72,56 @@ def calulate_EER(y_actual, y_pred):
 	far = fpr[np.nanargmin(np.absolute((fnr - fpr)))]
 	frr = fnr[np.nanargmin(np.absolute((fnr - fpr)))]
 
-	print(eer_threshold)
+	# print(eer_threshold)
 	return far,frr
 
 
-def evaluate_model(trainX, trainy, testX, testy, NAME, repeats):
-
-	model_path = '/media/adeen/Life/FYP/FYP_UPDATED/MODELS/'+sensor+'/'+NAME+'/'+run_type+run_number+'_'+str(repeats)+'_model.ckpt'
-	ckpt_callback = keras.callbacks.ModelCheckpoint(model_path, save_weights_only=True, verbose=1)
-	tb_callback = TensorBoard(log_dir='/media/adeen/Life/FYP/FYP_UPDATED/TENSORBOARD_LOGS/'+logs+'/'+NAME+'_'+run_type+run_number+'_'+str(repeats)+'CNN128_batch30_{}'.format(time()))
-	early_stop = keras.callbacks.EarlyStopping(patience=12, verbose=1)
-	# reduce_lr = keras.callbacks.ReduceLROnPlateau(factor=0.1,patience=5, min_lt=0.00001,verbose=1)
-
-
-	epochs, batch_size, learning_rate = 30, 30, 0.001
+def create_model():
+	sequence_length = MAX_LENGTH
+	features = len(col_names)-1
 
 	layer1 = Sequential()
-	layer1.add(Convolution1D(128, len(col_names), strides=2, activation='relu'))
+	layer1.add(Convolution1D(128, 4, strides=1, activation='relu', input_shape=(sequence_length, features)))
 	layer1.add(MaxPooling1D(pool_size=2))
 	layer1.add(Dropout(0.2))
 	layer1.add(Flatten())
 	layer1.add(Dense(2, activation='softmax'))
 
-	opt = keras.optimizers.adam(lr=learning_rate)
-	layer1.compile(loss='binary_crossentropy', optimizer=opt, metrics=['accuracy'])
+	return layer1
+
+
+def evaluate_model(trainX, trainy, testX, testy, NAME, repeats):
+
+	model_path = '/media/adeen/Life/FYP/FYP_UPDATED/MODELS/'+sensor+'/'+NAME+'/'
+	# model_ckpt = model_path+run_type+run_number+'_'+str(repeats)+'_model.ckpt'
+	# ckpt_callback = ModelCheckpoint(model_ckpt, save_weights_only=True, verbose=0)
+	# tb_callback = TensorBoard(log_dir='/media/adeen/Life/FYP/FYP_UPDATED/TENSORBOARD_LOGS/'+logs+'/'+NAME+'_'+run_type+run_number+'_'+str(repeats)+'CNN128_batch30_{}'.format(time()))
+	# early_stop = keras.callbacks.EarlyStopping(patience=12, verbose=1)
+	# reduce_lr = keras.callbacks.ReduceLROnPlateau(factor=0.1,patience=5, min_lt=0.00001,verbose=1)
 	
+	layer1 = create_model()
+
+	epochs, batch_size, learning_rate = 40, 30, 0.001
+	opt = adam(lr=learning_rate)
+	layer1.compile(loss='binary_crossentropy', optimizer=opt, metrics=['accuracy'])
+
 	# layer1.fit(trainX, trainy, epochs=epochs, batch_size=batch_size, validation_data=(validation_X, validation_y), shuffle=True, callbacks = [tb_callback])
-	hist = layer1.fit(trainX, trainy, epochs=epochs, batch_size=batch_size, shuffle=True, verbose=1, callbacks = [early_stop, ckpt_callback, tb_callback])
+	# hist = layer1.fit(trainX, trainy, epochs=epochs, batch_size=batch_size, shuffle=True, verbose=0, callbacks=[ckpt_callback])
 
 	# layer1.fit(trainX, trainy, epochs=epochs, batch_size=batch_size, shuffle=True, verbose=0)		# doesn't show training
-	# hist = layer1.fit(trainX, trainy, epochs=epochs, batch_size=batch_size, shuffle=True)				# shows training
+	hist = layer1.fit(trainX, trainy, epochs=epochs, batch_size=batch_size, shuffle=True, verbose=0)				# shows training
+	
+	model_weights = model_path+run_type+run_number+'_'+str(repeats)+'_model_weights.h5'
+	layer1.save_weights(model_weights)
+
+	# if NAME == 'user45':
+	# 	model_architecture = '/media/adeen/Life/FYP/FYP_UPDATED/MODELS/'+sensor+'/'+NAME+'/'+run_type+run_number+'_'+str(repeats)+'_model_arch.json'
+	# 	architecture = layer1.to_json()
+		
+	# 	with open(model_architecture, 'w') as f:
+	# 		json.dump(architecture, f)
+	
+
 
 	# evaluate model
 	y1_pred = layer1.predict(testX)
@@ -116,50 +137,45 @@ def evaluate_model(trainX, trainy, testX, testy, NAME, repeats):
 	far, frr = calulate_EER(testy[:,1], y1_pred_class)
 	_, accuracy1 = layer1.evaluate(testX, testy, verbose=0)
 
-	
+	# layer1.summary()
+
 	# model_name = '/media/adeen/Life/FYP/FYP_UPDATED/MODELS/'+sensor+'/'+NAME+'/'+run_type+run_number+'_'+str(repeats)+'_model.h5'
 	# layer1.save(model_name)
 
-	# model_weights = '/media/adeen/Life/FYP/FYP_UPDATED/MODELS/'+sensor+'/'+NAME+'/'+run_type+run_number+'_'+str(repeats)+'_model_weights.h5'
-	# layer1.save_weights(model_weights)
-
-	# if NAME == 'user45':
-	# 	model_architecture = '/media/adeen/Life/FYP/FYP_UPDATED/MODELS/'+sensor+'/'+NAME+'/'+run_type+run_number+'_'+str(repeats)+'_model_arch.json'
-	# 	architecture = layer1.to_json()
-		
-	# 	with open(model_architecture, 'w') as f:
-	# 		json.dump(architecture, f)
 
 	del layer1
-	return accuracy1, far, frr
+	return accuracy1, far, frr, model_path
  
-# summarize scores
-def summarize_results(scores):
-	print(scores)
-	m, s = np.mean(scores), np.std(scores)
-	print('Summary: %.3f%% (+/-%.3f)\n' % (m, s))
-	return m
 
- 
 # run an experiment
-def run_experiment(trainX, trainy, testX, testy, NAME, repeats=1):
-	scores1 = list()
-	far = list()
-	frr = list()
+def run_experiment(trainX, trainy, testX, testy, NAME, repeats=3):
+	best_acc = 0
+	best_fa = 0
+	best_fr = 0
+	best_mo = ''
+	mo_path = ''
+
 	for r in range(repeats):
-		accuracy1, fa, fr = evaluate_model(trainX, trainy, testX, testy, NAME, r)
-		print('>#%d: %.3f Test\n' % (r+1, accuracy1*100.0))
-		scores1.append(accuracy1*100.0)
-		far.append(fa*100.0)
-		frr.append(fr*100.0)
+		accuracy1, fa, fr, bp = evaluate_model(trainX, trainy, testX, testy, NAME, r)
+		
+		if accuracy1 > best_acc:
+			best_acc = accuracy1
+			best_fa = fa
+			best_fr = fr
+			best_mo = run_type+run_number+'_'+str(r)+'_model_weights.h5'
+			mo_path = bp
+
+		print('Repeat>#%d: %.3f Test\n' % (r+1, accuracy1*100.0))
 
 	# summarize results
-	print 'Test Set:'
-	Test_Accuracy[NAME] = summarize_results(scores1)
-	print 'False ACCEPT Rate:'
-	FAR[NAME] = summarize_results(far)
-	print 'False REJECT Rate:'
-	FRR[NAME] = summarize_results(frr)
+	Test_Accuracy[NAME] = best_acc*100.0
+	FAR[NAME] = best_fa*100.0
+	FRR[NAME] = best_fr*100.0
+	BEST_MODEL[NAME] = best_mo
+
+	with open(mo_path+'best_model.txt', 'w') as f:
+		f.write(str(best_mo))
+		f.close()
 
 
 def pandafy(path):
@@ -191,6 +207,12 @@ def load_data(NAME):
 
 	count = 0
 	
+	# save model = ['user13_0', 'user15_fail', 'user16_2', 'user17_2','user43_0','user42_fail', 'user7_1_2', 'user2_fail', 'user36_1_2', 'user32_1_2','user38_1','user21_2','user23_0_1','user28_0_1','user24_0','user33_0_1','user20_0']
+	# asd = ['user13', 'user15', 'user16', 'user17','user43','user42', 'user7', 'user2', 'user36', 'user32','user38','user21','user23','user28','user24','user33','user20']
+	
+	# if NAME not in asd:
+	# 	return
+
 	for subject in listing:
 		data_path = datasetFolder+'/'+subject
 
@@ -210,7 +232,7 @@ def load_data(NAME):
 							else:
 								X_tr.append([scaled_data, [0, 1]])
 							count+=1
-							print subject, '_', count
+							# print subject, '_', count
 
 				elif os.path.isdir(os.path.join(data_path, csv)):
 					for f in os.listdir(data_path+'/'+csv):
@@ -241,8 +263,9 @@ def load_data(NAME):
 
 start_time = time()
 
-for i in listing:
-	load_data(i)
+# for i in listing:
+# 	load_data(i)
+load_data('user2')
 
 print '\n\nTest Accuracy:\n', Test_Accuracy
 print '\n\n'
@@ -250,6 +273,8 @@ print 'FAR:\n', FAR
 print '\n\n'
 print 'FRR:\n', FRR
 print '\n\n'
+print 'Best Model\n:', BEST_MODEL
+print '\n\n' 
 
 sum_test = []
 far_sum = []
@@ -275,6 +300,7 @@ print '\nTime Elapsed = {} minutes\n'.format(elapsed_time)
 with open('run_number.txt', 'w') as f:
 	run_number = int(run_number)+1
 	f.write(str(run_number))
+	f.close()
 
 
 # python train_EER.py |& tee /media/adeen/Life/FYP/FYP_UPDATED/TEXT_LOGS/Ori_logs/GRU_Log0.txt

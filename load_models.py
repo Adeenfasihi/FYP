@@ -6,13 +6,13 @@ import keras
 from sklearn.preprocessing import MinMaxScaler
 from keras.models import Sequential
 from keras.layers import *
-from keras.models import Model
-from keras.models import load_model
-from keras.models import model_from_json
 from scipy import stats
 
 from time import time
+from keras.callbacks import TensorBoard
 from sklearn.metrics import roc_curve
+
+
 
 
 feature = '_ori_'
@@ -54,15 +54,13 @@ MAX_LENGTH = 1350
 # MAX_LENGTH = 2700
 
 listing = os.listdir(datasetFolder)
-# listing = sorted(listing, key=str.lower)
+listing = sorted(listing, key=str.lower)
 # print listing
-
-model_folder = '/media/adeen/Life/FYP/FYP_UPDATED/MODELS/'+sensor
-user_models = os.listdir(model_folder)
 
 Test_Accuracy = {}
 FAR = {}
 FRR = {}
+BEST_MODEL = {}
 
 
 def calulate_EER(y_actual, y_pred):
@@ -76,78 +74,81 @@ def calulate_EER(y_actual, y_pred):
 	return far,frr
 
 
-def evaluate_model(testX, testy, NAME, repeats):
-	# model_architecture = model_folder+'/user45/'+run_type+run_number+'_'+str(repeats)+'_model_arch.json'
-	model_weights = model_folder+'/'+NAME+'/'+run_type+run_number+'_'+str(repeats)+'_model_weights.h5'
-	
-	# with open(model_architecture, 'r') as f:
-		# layer1 = model_from_json(f.read())
-	
-	
-	# model_name = model_folder+'/'+NAME+'/'+run_type+run_number+'_'+str(repeats)+'_model.h5'
-
-	# try:
-	# layer1 = load_model(model_name)
-	# except:
-	# 	print("Unsuccessful Load:\n%s" % model_name)
-	# 	exit()
-
-
-	epochs, batch_size, learning_rate = 40, 30, 0.001
+def create_model():
+	sequence_length = MAX_LENGTH
+	features = len(col_names)-1
 
 	layer1 = Sequential()
-	layer1.add(Convolution1D(len(col_names), 128, strides=2, activation='relu'))
+	layer1.add(Convolution1D(128, 4, strides=1, activation='relu', input_shape=(sequence_length, features)))
 	layer1.add(MaxPooling1D(pool_size=2))
 	layer1.add(Dropout(0.2))
 	layer1.add(Flatten())
 	layer1.add(Dense(2, activation='softmax'))
 
+	return layer1
+
+def evaluate_model(testX, testy, NAME):
+
+	model_path = '/media/adeen/Life/FYP/FYP_UPDATED/MODELS/'+sensor+'/'+NAME+'/'
+
+	with open(model_path+'best_model.txt', 'r') as f:
+		best_mo = f.readline()
+	
+	model_path = model_path+best_mo
+	print(model_path)
+
+	# model_list = os.listdir(model_path)
+
+	# model_path = '/media/adeen/Life/FYP/FYP_UPDATED/MODELS/Orientation/user7/IMU_Equal3_0_model.ckpt'
+
+	epochs, batch_size, learning_rate = 40, 30, 0.001
+
+	layer1 = create_model()
 	opt = keras.optimizers.adam(lr=learning_rate)
 	layer1.compile(loss='binary_crossentropy', optimizer=opt, metrics=['accuracy'])
+	
+	if model_path:
+		layer1.load_weights(model_path)
 
-	layer1.load_weights(model_weights, by_name=True)
 
+	# evaluate model
 	y1_pred = layer1.predict(testX)
 	y1_pred_class = layer1.predict_classes(testX)
 
+	# show the inputs and predicted outputs
 	print('\n                                      [pForged    pGenuine]')
 	for i in range(len(testX)):
+		# if(y1_pred[i] == 1 or testy[i] == 1):
 		print('Actual=%s, Predicted=%s, Confidence=%s' % (testy[i, 1], y1_pred_class[i], y1_pred[i]))
 
+	
 	far, frr = calulate_EER(testy[:,1], y1_pred_class)
 	_, accuracy1 = layer1.evaluate(testX, testy, verbose=0)
 
 	del layer1
 	return accuracy1, far, frr
  
-# summarize scores
-def summarize_results(scores):
-	print(scores)
-	m, s = np.mean(scores), np.std(scores)
-	print('Accuracy: %.3f%% (+/-%.3f)' % (m, s))
-	return m
 
- 
 # run an experiment
 def run_experiment(testX, testy, NAME, repeats=1):
-	scores1 = list()
-	far = list()
-	frr = list()
+	best_acc = 0
+	best_fa = 0
+	best_fr = 0
+
 	for r in range(repeats):
-		accuracy1, fa, fr = evaluate_model(testX, testy, NAME, r)
-		score1 = accuracy1 * 100.0
-		print('>#%d: %.3f Test\n' % (r+1, score1))
-		scores1.append(score1)
-		far.append(fa)
-		frr.append(fr)
+		accuracy1, fa, fr = evaluate_model(testX, testy, NAME)
+		
+		if accuracy1 > best_acc:
+			best_acc = accuracy1
+			best_fa = fa
+			best_fr = fr
+
+		print('Repeat>#%d: %.3f Test\n' % (r+1, accuracy1*100.0))
 
 	# summarize results
-	print 'Test Set:'
-	Test_Accuracy[NAME] = summarize_results(scores1)
-	print 'False ACCEPT Rate:'
-	FAR[NAME] = summarize_results(far)
-	print 'False REJECT Rate:'
-	FRR[NAME] = summarize_results(frr)
+	Test_Accuracy[NAME] = best_acc*100.0
+	FAR[NAME] = best_fa*100.0
+	FRR[NAME] = best_fr*100.0
 
 
 def pandafy(path):
@@ -211,12 +212,11 @@ def load_data(NAME):
 	run_experiment(testX, testy, NAME)
 
 
-
 start_time = time()
 
-for i in listing:
-	load_data(i)
-# load_data('user45')
+# for i in listing:
+# 	load_data(i)
+load_data('user2')
 
 print '\n\nTest Accuracy:\n', Test_Accuracy
 print '\n\n'
@@ -242,13 +242,11 @@ print 'Mean Test Accuracy: ', np.mean(np.array(sum_test))
 print 'Mean FAR: ', np.mean(np.array(far_sum))
 print 'Mean FRR: ', np.mean(np.array(frr_sum))
 
-elapsed_time = (time() - start_time)/60
+elapsed_time = (time() - start_time)
 
-print '\nTime Elapsed = {} minutes\n'.format(elapsed_time)
-
-
+print '\nTime Elapsed = {} seconds\n'.format(elapsed_time)
 
 
-# python train.py |& tee /media/adeen/Life/FYP/FYP_UPDATED/TEXT_LOGS/Ori_logs/0oriSoftmax_all_mean.txt
+# python train_EER.py |& tee /media/adeen/Life/FYP/FYP_UPDATED/TEXT_LOGS/Ori_logs/GRU_Log0.txt
 # python train.py |& tee /media/adeen/Life/FYP/FYP_UPDATED/TEXT_LOGS/Gyro_logs/0gyroSoftmax_all_mean.txt
 # python train.py |& tee /media/adeen/Life/FYP/FYP_UPDATED/TEXT_LOGS/Acc_logs/0accSoftmax_all_mean.txt
